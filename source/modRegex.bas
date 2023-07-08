@@ -2,11 +2,11 @@ Attribute VB_Name = "modRegex"
 Option Compare Database
 Option Explicit
 
-Private m_Regex As Object
+Private m_RegExp As Object
 
-Public Property Get RegEx() As Object
-   If m_Regex Is Nothing Then
-      Set m_Regex = CreateObject("Vbscript.Regexp")
+Public Property Get RegExp() As Object
+   If m_RegExp Is Nothing Then
+      Set m_RegExp = CreateObject("VbScript.RegExp")
    End If
-   Set RegEx = m_Regex
+   Set RegExp = m_RegExp
 End Property

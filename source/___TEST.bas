@@ -39,11 +39,11 @@ End Sub
 
 Private Sub testGetLink()
 
-   Debug.Print getLink("abcXYZ")
+   Debug.Print GetLink("abcXYZ")
 
 End Sub
 
-Private Function getLink(strName As String) As String
+Private Function GetLink(strName As String) As String
    
 
    Dim i As Long
@@ -58,6 +58,6 @@ Private Function getLink(strName As String) As String
       i = i + 1
    Loop
    
-   getLink = strName
+   GetLink = strName
 
 End Function
