@@ -31,7 +31,7 @@ Attribute VB_Exposed = False
 Option Compare Database
 Option Explicit
 
-#Const EARLYBINDING = 0
+#Const EARLYBINDING = 1
 
 #If EARLYBINDING Then
    Private m_CodeModule As VBIDE.CodeModule
@@ -61,6 +61,8 @@ Private m_ProcCollection As Collection
 Private m_HeaderItemCollection As Collection
 Private m_RequiredModules As Collection
 Private m_RequiredModulesChecked As Boolean
+
+Private m_ProcedureDependenciesCollection As Collection
 
 Private Const ERRNUMBER_CHECKDEPENDENCY_NOTRUN As Long = vbObjectError + 5001
 Private Const ERRDESCRIPTION_CHECKDEPENDENCY_NOTRUN As String = "CheckDependency has not been executed yet"
@@ -130,6 +132,22 @@ Public Property Get Name() As String
 End Property
 
 '---------------------------------------------------------------------------------------
+' Property: ComponentType
+'---------------------------------------------------------------------------------------
+'
+' Type of VBComponent of the code module
+'
+' Remarks:
+'     ComponentType = CodeModule.Parent.Type
+'
+'---------------------------------------------------------------------------------------
+Public Property Get ComponentType() As vbext_ComponentType
+
+   ComponentType = m_CodeModule.Parent.Type
+
+End Property
+
+'---------------------------------------------------------------------------------------
 ' Property: RequiredModules
 '---------------------------------------------------------------------------------------
 '
@@ -150,6 +168,17 @@ Public Property Get RequiredModules() As Collection
 End Property
 
 '---------------------------------------------------------------------------------------
+' Property: ProcedureDependenciesCollection
+'---------------------------------------------------------------------------------------
+'
+' Collection der abhängigen Prozeduren
+'
+'---------------------------------------------------------------------------------------
+Public Property Get ProcedureDependenciesCollection() As Collection
+   Set ProcedureDependenciesCollection = m_ProcedureDependenciesCollection
+End Property
+
+'---------------------------------------------------------------------------------------
 ' Function: CheckDependency
 '---------------------------------------------------------------------------------------
 '
@@ -165,14 +194,17 @@ End Property
 '---------------------------------------------------------------------------------------
 #If EARLYBINDING Then
 Public Function CheckDependency(Optional ByVal VbpRef As VBIDE.VBProject = Nothing, _
-                                Optional ByRef ModulReaderCollection As Collection = Nothing) As Long
+                                Optional ByRef ModulReaderCollection As Collection = Nothing, _
+                                Optional ByVal FillProcedureDependencies As Boolean = False) As Long
 #Else
 Public Function CheckDependency(Optional ByVal VbpRef As Object = Nothing, _
-                                Optional ByRef ModulReaderCollection As Collection = Nothing) As Long
+                                Optional ByRef ModulReaderCollection As Collection = Nothing, _
+                                Optional ByVal FillProcedureDependencies As Boolean = False) As Long
 #End If
 
    Dim CheckCollection As Collection
    Dim AddModule As Boolean
+   Dim TempCodeModuleInfo As CodeModuleInfo
 
 #If EARLYBINDING Then
    Dim vbc As VBIDE.VBComponent
@@ -203,6 +235,12 @@ Public Function CheckDependency(Optional ByVal VbpRef As Object = Nothing, _
 
    End If
    
+   If FillProcedureDependencies Then
+      If m_ProcedureDependenciesCollection Is Nothing Then
+         Set m_ProcedureDependenciesCollection = New Collection
+      End If
+   End If
+   
    For Each TempModuleReader In ModulReaderCollection
       If Not (TempModuleReader.Name = Me.Name) Then
          AddModule = False
@@ -213,7 +251,12 @@ Public Function CheckDependency(Optional ByVal VbpRef As Object = Nothing, _
             For Each TempProc In CheckCollection
                If Me.ProcedureUsed(TempProc) Then
                   AddModule = True
-                  Exit For
+                  If FillProcedureDependencies Then
+                     Set TempProc.UsedInProcCollection = Me.ProcedureUsedIn(TempProc)
+                     m_ProcedureDependenciesCollection.Add TempProc, TempProc.Name
+                  Else
+                     Exit For
+                  End If
                End If
             Next
             
@@ -230,9 +273,15 @@ Public Function CheckDependency(Optional ByVal VbpRef As Object = Nothing, _
          Else 'for classes it is enough to check the usage of the class
             If Me.ClassUsed(TempModuleReader.CodeModule.Parent.Name) Then
                AddModule = True
+               If FillProcedureDependencies Then
+                  Set TempCodeModuleInfo = New CodeModuleInfo
+                  TempCodeModuleInfo.Name = TempModuleReader.CodeModule.Parent.Name
+                  Set TempCodeModuleInfo.UsedInProcCollection = Me.ClassUsedIn(TempModuleReader.CodeModule.Parent.Name)
+                  m_ProcedureDependenciesCollection.Add TempCodeModuleInfo, TempCodeModuleInfo.Name
+               End If
             End If
             
-            If Not AddModule Then ' check only enums for classes
+            If (Not AddModule) Or FillProcedureDependencies Then ' check only enums for classes
                Set CheckCollection = TempModuleReader.HeaderItems
                For Each TempHeaderItem In CheckCollection
                   If TempHeaderItem.ItemType = CodeModuleHeaderItemType.cmItemType_Enum Then
@@ -276,21 +325,12 @@ End Function
 '---------------------------------------------------------------------------------------
 Public Function ClassUsed(ByVal ClassName As String) As Boolean
    
-   Dim SearchString(6) As String
+   Dim SearchString() As String
    Dim i As Long
    Dim IsUsed As Boolean
    Dim MaxIndex As Long
 
-   SearchString(0) = " As " & Trim$(ClassName) & vbNewLine
-   SearchString(1) = " As " & Trim$(ClassName) & ","
-   SearchString(2) = " As " & Trim$(ClassName) & " "
-   
-   MaxIndex = 2
-   For i = 0 To MaxIndex
-      SearchString(MaxIndex + 1 + i) = " New " & Mid(SearchString(i), 5)
-   Next
-   
-   SearchString(6) = " " & Trim$(ClassName) & "." ' to detect the use of static classes
+   SearchString = ClassNameSearchStrings(ClassName)
    
    If StrPtr(m_CodeModuleText) = 0 Then
       m_CodeModuleText = PlainCodeText
@@ -307,6 +347,48 @@ Public Function ClassUsed(ByVal ClassName As String) As Boolean
 
 End Function
 
+Private Function ClassNameSearchStrings(ByVal ClassName As String) As String()
+   
+   Dim SearchString(6) As String
+   Dim i As Long
+   Dim MaxIndex As Long
+
+   SearchString(0) = " As " & Trim$(ClassName) & vbNewLine
+   SearchString(1) = " As " & Trim$(ClassName) & ","
+   SearchString(2) = " As " & Trim$(ClassName) & " "
+   
+   MaxIndex = 2
+   For i = 0 To MaxIndex
+      SearchString(MaxIndex + 1 + i) = " New " & Mid(SearchString(i), 5)
+   Next
+   
+   SearchString(6) = " " & Trim$(ClassName) & "." ' to detect the use of static classes
+
+   ClassNameSearchStrings = SearchString
+
+End Function
+
+Public Function ClassUsedIn(ByVal ClassName As String) As Collection
+
+   Dim SearchStringArray() As String
+   Dim Proc As CodeModuleProcedure
+   Dim OnlyWithModulePrefix As Boolean
+   Dim UsedInCollection As Collection
+   
+   Set UsedInCollection = New Collection
+   
+   SearchStringArray = ClassNameSearchStrings(ClassName)
+   
+   For Each Proc In Me.Procedures(True, True)
+      If SearchStringsInCode(Proc.ProcCode, SearchStringArray) Then
+         UsedInCollection.Add Proc, Proc.Name
+      End If
+   Next
+   
+   Set ClassUsedIn = UsedInCollection
+   
+End Function
+
 '---------------------------------------------------------------------------------------
 ' Function: ProcedureUsed
 '---------------------------------------------------------------------------------------
@@ -320,7 +402,7 @@ End Function
 '     Boolean
 '
 '---------------------------------------------------------------------------------------
-Public Function ProcedureUsed(ByRef CodeModuleProc As CodeModuleProcedure) As Boolean
+Public Function ProcedureUsed(ByVal CodeModuleProc As CodeModuleProcedure) As Boolean
    
    Dim SearchStringArray() As String
    Dim i As Long
@@ -365,6 +447,67 @@ Public Function ProcedureUsed(ByRef CodeModuleProc As CodeModuleProcedure) As Bo
    ProcedureUsed = IsUsed
 
 End Function
+
+Public Function ProcedureUsedIn(ByRef CodeModuleProc As CodeModuleProcedure) As Collection
+
+   Dim SearchStringArray() As String
+   Dim Proc As CodeModuleProcedure
+   Dim OnlyWithModulePrefix As Boolean
+   Dim UsedInCollection As Collection
+   
+   Set UsedInCollection = New Collection
+   
+   'if internal procedure names overlap with the one to be checked,
+   'a match is considered a hit only for the combination modulename.procedure
+   For Each Proc In Me.Procedures(True, True)
+      If Proc.Name = CodeModuleProc.Name Then
+         OnlyWithModulePrefix = True
+         Exit For
+      End If
+   Next
+
+   SearchStringArray = CodeModuleProc.SearchStrings(OnlyWithModulePrefix)
+   
+   For Each Proc In Me.Procedures(True, True)
+      If SearchStringsInCode(Proc.ProcCode, SearchStringArray) Then
+         UsedInCollection.Add Proc, Proc.Name
+      End If
+   Next
+   
+   Set ProcedureUsedIn = UsedInCollection
+   
+End Function
+
+Private Function SearchStringsInCode(ByVal ProcCode As String, ByRef SearchStringArray() As String) As Boolean
+   
+   Dim i As Long
+   
+   For i = LBound(SearchStringArray) To UBound(SearchStringArray)
+   
+#If USEREGEXP = 1 Then
+      With RegExp
+         .Pattern = SearchStringArray(i)
+         .Global = False
+         IsUsed = .Test(m_CodeModuleText)
+         If IsUsed Then
+            Exit For
+         End If
+      End With
+#Else
+      If ProcCode Like "*" & SearchStringArray(i) & "*" Then
+         SearchStringsInCode = True
+         Exit Function
+      End If
+#End If
+   
+   Next
+   
+End Function
+
+
+   
+   
+   
 
 '---------------------------------------------------------------------------------------
 ' Function: HeaderItemUsed
@@ -508,6 +651,7 @@ Public Property Get Procedures(Optional ByVal Refresh As Boolean = False, _
    Dim TempProcKind As vbext_ProcKind
    Dim AddProc As Boolean
    Dim TempProcLine As String
+   Dim IsPrivate As Boolean
 
    CurrentLine = m_CodeModule.CountOfDeclarationLines + 1
    Do While CurrentLine <= m_CodeModule.CountOfLines
@@ -524,20 +668,24 @@ Public Property Get Procedures(Optional ByVal Refresh As Boolean = False, _
          
          If AddProc Then 'Append only public elements
             TempProcLine = Trim(m_CodeModule.Lines(m_CodeModule.ProcBodyLine(TempProcName & "", TempProcKind), 1))
-            If IncludePrivateProc Then
-               AddProc = True
-            ElseIf m_CodeModule.Parent.Type = vbext_ct_StdModule Then 'No Private
-               AddProc = Not (Left(TempProcLine, 8) = "Private ")
+            
+            If m_CodeModule.Parent.Type = vbext_ct_StdModule Then 'No Private
+               IsPrivate = Left(TempProcLine, 8) = "Private "
             Else 'Public or Friend only
-               AddProc = (Left(TempProcLine, 7) = "Public ") Or (Left(TempProcLine, 7) = "Friend ")
+               IsPrivate = Not (Left(TempProcLine, 7) = "Public ") Or (Left(TempProcLine, 7) = "Friend ")
             End If
             
+            If Not IncludePrivateProc Then
+               AddProc = Not IsPrivate
+            End If
+   
          End If
       
          If AddProc Then
             Set TempProc = New CodeModuleProcedure
             TempProc.Name = TempProcName
             TempProc.ProcKind = TempProcKind
+            TempProc.IsPrivate = IsPrivate
             Set TempProc.ProcVbComponent = m_CodeModule.Parent
             On Error Resume Next
             m_ProcCollection.Add TempProc, TempProcName

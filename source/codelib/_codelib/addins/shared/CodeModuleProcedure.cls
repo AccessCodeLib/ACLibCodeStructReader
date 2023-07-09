@@ -30,6 +30,9 @@ Option Compare Database
 Option Explicit
 
 Public Name As String
+Public IsPrivate As Boolean
+
+#Const EARLYBINDING = 1
 
 #If EARLYBINDING Then
    Public ProcVbComponent As VBIDE.VBComponent
@@ -38,6 +41,8 @@ Public Name As String
    Public ProcVbComponent As Object
    Public ProcKind As Long
 #End If
+
+Public UsedInProcCollection As Collection
 
 
 Public Function SearchStrings(Optional ByVal OnlyWithModulePrefix As Boolean = False) As String()
@@ -91,3 +96,16 @@ Public Function SearchStrings(Optional ByVal OnlyWithModulePrefix As Boolean = F
    SearchStrings = SearchStringArray
 
 End Function
+
+Public Property Get ProcCode() As String
+
+   Dim ProcBodyLine As Long
+   Dim ProcCountLines As Long
+   
+   With ProcVbComponent.CodeModule
+      ProcBodyLine = .ProcBodyLine(Me.Name, Me.ProcKind)
+      ProcCountLines = .ProcCountLines(Me.Name, Me.ProcKind)
+      ProcCode = .Lines(ProcBodyLine, ProcCountLines)
+   End With
+
+End Property

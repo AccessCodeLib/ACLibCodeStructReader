@@ -112,7 +112,7 @@ End Property
 ' </remarks>
 '**/
 '---------------------------------------------------------------------------------------
-Public Sub ReadStruct()
+Public Sub ReadStruct(Optional ByVal FillProcedureDependencies As Boolean = False)
 
 #If EARLYBINDING Then
    Dim vbp As VBIDE.VBProject
@@ -143,7 +143,7 @@ Public Sub ReadStruct()
    'Abhängigkeiten ermitteln
    If Len(strBaseCodeModuleName) = 0 Then 'alle Abhängigkeiten
       For Each TempModuleReader In m_CodeModuleReaderCollection
-         Call TempModuleReader.CheckDependency(, m_CodeModuleReaderCollection)
+         Call TempModuleReader.CheckDependency(, m_CodeModuleReaderCollection, FillProcedureDependencies)
       Next
    Else
    
@@ -165,7 +165,7 @@ Public Sub ReadStruct()
          lngCount = lngCount + 1
          For Each checkReader In TempModuleReader.RequiredModules
             If Not ModulReaderExistsInCollection(newCol, checkReader) Then
-               Call checkReader.CheckDependency(, m_CodeModuleReaderCollection)
+               Call checkReader.CheckDependency(, m_CodeModuleReaderCollection, FillProcedureDependencies)
                newCol.Add checkReader, checkReader.Name
             End If
          Next
@@ -180,9 +180,9 @@ Public Sub ReadStruct()
    
 End Sub
 
-Private Function ModulReaderExistsInCollection(col As Collection, cmr As CodeModuleReader) As Boolean
+Private Function ModulReaderExistsInCollection(Col As Collection, cmr As CodeModuleReader) As Boolean
    Dim TempModuleReader As CodeModuleReader
-   For Each TempModuleReader In col
+   For Each TempModuleReader In Col
       If TempModuleReader.Name = cmr.Name Then
          ModulReaderExistsInCollection = True
          Exit For

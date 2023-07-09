@@ -42,6 +42,7 @@ Public SubGraph As GraphvizDOTgraph
 Public HtmlExport As Boolean
 Public URL As String
 
+
 Private p_Label As String
 Private m_color As String
 Private p_LabelDOTstring As String

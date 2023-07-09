@@ -5,7 +5,7 @@ Attribute VB_Name = "_config_Application"
 Option Compare Database
 Option Explicit
 
-Private Const m_APPLICATIONVERSION As String = "0.3.0"
+Private Const m_APPLICATIONVERSION As String = "0.4.0"
 
 Private Const m_ApplicationName As String = "ACLib StructReader"
 Private Const m_ApplicationFullName As String = m_ApplicationName

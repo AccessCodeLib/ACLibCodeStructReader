@@ -43,7 +43,7 @@ Private Sub Class_Terminate()
 End Sub
 
 Public Property Get DOTstring(Optional NoSubGraph As Boolean = False) As String
-   DOTstring = getDOTstring(NoSubGraph)
+   DOTstring = GetDOTstring(NoSubGraph)
 End Property
 
 Public Property Get Node(vIndex As Variant) As GraphvizDOTnode
@@ -131,7 +131,7 @@ Public Sub AddConnection(sFrom As String, sTo As String, _
    
 End Sub
 
-Private Function getDOTstring(Optional NoSubGraph As Boolean = False) As String
+Private Function GetDOTstring(Optional NoSubGraph As Boolean = False) As String
 
    Dim strDOT As String
    Dim strTemp As String
@@ -148,6 +148,6 @@ Private Function getDOTstring(Optional NoSubGraph As Boolean = False) As String
       strDOT = strDOT & p_colConnections(i).DOTstring
    Next i
    
-   getDOTstring = strDOT
+   GetDOTstring = strDOT
 
 End Function
